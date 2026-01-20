@@ -6,20 +6,35 @@ import (
 	"compress/zlib"
 	"encoding/binary"
 	"fmt"
+	"github.com/fogleman/gg"
 	"image"
 	"image/color"
 	"io"
 	"math"
 	"os"
-
-	"github.com/fogleman/gg"
+	"strings"
 )
 
 var pngSignature = [8]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
 
+var testText = `В тъги, в неволи, младост минува,
+кръвта се ядно в жили волнува,
+погледът мрачен, умът не види
+добро ли, зло ли насреща иде...
+На душа лежат спомени тежки,
+злобна ги памет често повтаря,
+в гърди ни любов, ни капка вяра,
+нито надежда от сън мъртвешки
+да можеш свестен човек събуди!
+Свестните у нас считат за луди,`
+
 type Row struct {
 	Filter  byte
 	RowData []byte
+}
+type TextRows struct {
+	runesPerRow int
+	text        [][]rune
 }
 
 type Pixel struct {
@@ -90,6 +105,61 @@ type PNGChunk struct {
 	Type   [4]byte
 	Data   []byte
 	CRC    [4]byte
+}
+
+func (img *PNGData) createTextImage(fontWidth, fontHeight int, textRows TextRows) *gg.Context {
+	pixelSizeX := textRows.runesPerRow * fontWidth
+	pixelSizeY := textRows.runesPerRow * fontHeight
+	canvasX := pixelSizeX * int(img.Width)
+	canvasY := pixelSizeY * int(img.Height)
+	currProseNum := 0
+	var currText string
+
+	canvas := gg.NewContext(canvasX, canvasY)
+	canvas.SetRGB(1, 1, 1)
+	canvas.Clear()
+
+	//could be bad if fontHeight/fontWidth doesnt match with the size of th loaded font face
+	canvas.LoadFontFace("./font/RobotoMono-Regular.ttf", 8)
+
+	for y := range int(img.Height) {
+		for x := range int(img.Width) {
+
+			canvas.Push()
+			canvas.Translate(float64(x*pixelSizeX), float64(y*pixelSizeY))
+
+			//canvas.Push()
+			//canvas.SetColor(color.RGBA{
+			//	R: img.UnfilteredPng[y][x].Red,
+			//	G: img.UnfilteredPng[y][x].Green,
+			//	B: img.UnfilteredPng[y][x].Blue,
+			//	A: 255,
+			//})
+			//canvas.DrawRectangle(0, 0, float64(pixelSizeX), float64(pixelSizeY))
+			//canvas.Pop()
+
+			canvas.SetColor(color.RGBA{
+				R: img.UnfilteredPng[y][x].Red,
+				G: img.UnfilteredPng[y][x].Green,
+				B: img.UnfilteredPng[y][x].Blue,
+				A: 255,
+			})
+			scaleX := canvas.FontHeight() / float64(fontWidth)
+			canvas.Scale(scaleX, 1)
+
+			for i := range textRows.runesPerRow {
+				currText = string(textRows.text[currProseNum][i*textRows.runesPerRow : (i*textRows.runesPerRow)+textRows.runesPerRow])
+				canvas.DrawString(currText, 0, float64(i*int(canvas.FontHeight())))
+			}
+			currProseNum++
+			if currProseNum >= len(textRows.text) {
+				currProseNum = 0
+			}
+
+			canvas.Pop()
+		}
+	}
+	return canvas
 }
 
 // fucks up alpha
@@ -181,7 +251,7 @@ func (img *PNGData) readChunk() (e error, end bool) {
 
 	if chunk.Type[0] >= 'a' && chunk.Type[0] <= 'z' {
 		_, err = io.CopyN(io.Discard, img.fileStream, int64(binary.BigEndian.Uint32(chunk.Length[:]))+4)
-		fmt.Println("Put the fries in the bag")
+		//fmt.Println("Put the fries in the bag")
 		checkErr(err)
 		return nil, false
 	}
@@ -197,13 +267,34 @@ func (img *PNGData) readChunk() (e error, end bool) {
 	return nil, false
 }
 
+func (img *PNGData) scaleUp(pixelSize int) {
+	newWidth := img.Width * uint32(pixelSize)
+	newHeight := img.Height * uint32(pixelSize)
+	newPng := make([][]Pixel, newHeight)
+	for i := range newPng {
+		newPng[i] = make([]Pixel, newWidth)
+	}
+	for y := range img.Height {
+		for x := range img.Width {
+			currPixel := img.UnfilteredPng[y][x]
+			for i := range pixelSize {
+				for j := range pixelSize {
+					newPng[(int(y)*pixelSize)+j][(int(x)*pixelSize)+i] = currPixel
+				}
+			}
+		}
+	}
+	img.Height = newHeight
+	img.Width = newWidth
+	img.UnfilteredPng = newPng
+}
+
 func (img *PNGData) scaleDown(cursorSize int) {
 	//may remove a few pixels
 	newWidth := int(math.Floor(float64(img.Width / uint32(cursorSize))))
 	newHeight := int(math.Floor(float64(img.Height / uint32(cursorSize))))
 	newPng := make([][]Pixel, newHeight)
-	fmt.Println(newHeight)
-	fmt.Println(newWidth)
+
 	for i := range newPng {
 		newPng[i] = make([]Pixel, newWidth)
 	}
@@ -244,9 +335,53 @@ func checkErr(err error) {
 	}
 }
 
-func main() {
+func textPixel(text string) TextRows {
+	lines := strings.Split(text, "\n")
+	var runeLines [][]rune
 
-	f, err := os.Open("./smt.png")
+	longestLineLen := 0
+	for _, line := range lines {
+		if len([]rune(line)) > longestLineLen {
+			longestLineLen = len([]rune(line))
+		}
+	}
+	longestLineLen = int(math.Ceil(math.Sqrt(float64(longestLineLen))))
+	runesPerRow := longestLineLen
+	longestLineLen = longestLineLen * longestLineLen
+
+	for _, line := range lines {
+		runes := []rune(line)
+		lineLen := len(runes)
+
+		for lineLen < longestLineLen {
+			padded := false
+			for j := 0; j < len(runes) && lineLen < longestLineLen; j++ {
+				if runes[j] == ' ' {
+					runes = append(runes[:j+1], append([]rune{' '}, runes[j+1:]...)...)
+					lineLen++
+					j++
+					padded = true
+				}
+			}
+
+			if !padded {
+				runes = append(runes, make([]rune, longestLineLen-lineLen)...)
+				for k := lineLen; k < longestLineLen; k++ {
+					runes[k] = ' '
+				}
+				lineLen = longestLineLen
+			}
+		}
+		runeLines = append(runeLines, runes)
+	}
+	return TextRows{
+		runesPerRow: runesPerRow,
+		text:        runeLines,
+	}
+}
+
+func main() {
+	f, err := os.Open("./mechopuh.png")
 	checkErr(err)
 	defer f.Close()
 
@@ -286,7 +421,6 @@ func main() {
 	if img.BitDepth != 8 {
 		panic("only 1 byte per channel !")
 	}
-	fmt.Println("is Png")
 	fmt.Println(img.BitDepth)
 	fmt.Println(img.Width)
 	fmt.Println(img.Height)
@@ -301,10 +435,8 @@ func main() {
 			break
 		}
 	}
-
 	img.inflateIdat()
 	img.unfilterData()
-	img.scaleDown(8)
 
 	pngImg := image.NewRGBA(image.Rect(0, 0, int(img.Width), int(img.Height)))
 
@@ -325,11 +457,28 @@ func main() {
 	defer file.Close()
 
 	newImage := gg.NewContextForRGBA(pngImg)
-	newImage.DrawCircle(10, 10, 10)
-	newImage.SetRGBA(0, 0, 0, 255)
-	newImage.Fill()
+	//newImage.DrawCircle(0, 0, 25)
+	//newImage.SetRGB(1, 0, 0)
+	//newImage.FillPreserve()
+	//newImage.SetRGB(0, 1, 0)
+	//newImage.Stroke()
+	newImage.LoadFontFace("./font/RobotoMono-Regular.ttf", 8)
+	newImage.SetRGB(0, 0, 1)
+	charWidth, _ := newImage.MeasureString("X")
+	fmt.Println("font width: ", charWidth)
+	fmt.Println("font height: ", newImage.FontHeight())
+	scaleX := newImage.FontHeight() / charWidth
+	newImage.Scale(scaleX, 1)
+	newImage.DrawString("В тъги, в неволи", 0, newImage.FontHeight())
+	newImage.DrawString("mazna batjo", 0, newImage.FontHeight()*2)
 	newImage.SavePNG("helloHello.png")
 
+	//lines := textPixel(testText)
+	//img.createTextImage(int(charWidth),)
+
+	//for i, s := range lines {
+	//	fmt.Printf("Line %d: %d bytes, %d runes\n", i+1, len(s), len([]rune(s)))
+	//}
 	//http.HandleFunc("/", greet)
 	//http.ListenAndServe(":8080", nil)
 }
