@@ -5,13 +5,18 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
-	"github.com/fogleman/gg"
 	"image/color"
+	"image/png"
 	"io"
 	"math"
-	"os"
+	"net/http"
+	"path/filepath"
+	"strconv"
 	"strings"
+
+	"github.com/fogleman/gg"
 )
 
 var pngSignature = [8]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
@@ -106,15 +111,21 @@ type PNGChunk struct {
 	CRC    [4]byte
 }
 
-func (img *PNGData) createTextImage(textRows TextRows, fontSize int) *gg.Context {
+func blend(c uint8, alpha float64, bgColor byte) uint8 {
+	return uint8(
+		math.Round(
+			float64(c)*alpha + float64(bgColor)*(1-alpha),
+		),
+	)
+}
+func (img *PNGData) createTextImage(textRows TextRows, fontSize int, alpha float64, bgColor string, w http.ResponseWriter) *gg.Context {
 	//this is dumb
 	im := gg.NewContext(1, 1)
 	im.LoadFontFace("./font/RobotoMono-Bold.ttf", float64(fontSize))
-	fontWidth, _ := im.MeasureString("X")
+	fontWidth, _ := im.MeasureString("XX")
+	fontWidth = fontWidth / 2
 	scaleX := im.FontHeight() / float64(fontWidth)
-	fontWidth = fontWidth * scaleX
-	pixelSize := float64(textRows.runesPerRow) * fontWidth
-	fmt.Println("pixel sizes : ", pixelSize, pixelSize)
+	pixelSize := float64(textRows.runesPerRow) * fontWidth * scaleX
 
 	canvasX := pixelSize * float64(img.Width)
 	canvasY := pixelSize * float64(img.Height)
@@ -122,9 +133,12 @@ func (img *PNGData) createTextImage(textRows TextRows, fontSize int) *gg.Context
 	var currText string
 
 	canvas := gg.NewContext(int(canvasX), int(canvasY))
-	canvas.SetRGB(1, 1, 1)
+	canvas.SetHexColor(bgColor)
 	canvas.Clear()
-	bgAlpha := 30.0 / 255.0
+	bgAlpha := alpha / 255.0
+
+	bgHex, err := hex.DecodeString(bgColor[1:])
+	checkErr(err, w, "Got an error while decoding bg color to hex.", http.StatusInternalServerError)
 
 	//could be bad if fontHeight/fontWidth doesnt match with the size of th loaded font face
 	canvas.LoadFontFace("./font/RobotoMono-Bold.ttf", float64(fontSize))
@@ -136,10 +150,11 @@ func (img *PNGData) createTextImage(textRows TextRows, fontSize int) *gg.Context
 			canvas.Translate(float64(x)*pixelSize, float64(y)*pixelSize)
 
 			canvas.Push()
+			//the lib's alpha calculation is wrong :C
 			canvas.SetColor(color.RGBA{
-				R: (img.UnfilteredPng[y][x].Red * byte(bgAlpha)) + byte(255*(1-bgAlpha)),
-				B: (img.UnfilteredPng[y][x].Blue * byte(bgAlpha)) + byte(255*(1-bgAlpha)),
-				G: (img.UnfilteredPng[y][x].Green * byte(bgAlpha)) + byte(255*(1-bgAlpha)),
+				R: blend(img.UnfilteredPng[y][x].Red, bgAlpha, bgHex[0]),
+				G: blend(img.UnfilteredPng[y][x].Green, bgAlpha, bgHex[1]),
+				B: blend(img.UnfilteredPng[y][x].Blue, bgAlpha, bgHex[2]),
 				A: 255,
 			})
 			canvas.DrawRectangle(0, 0, float64(pixelSize), float64(pixelSize))
@@ -157,8 +172,12 @@ func (img *PNGData) createTextImage(textRows TextRows, fontSize int) *gg.Context
 
 			for i := range textRows.runesPerRow {
 				currText = string(textRows.text[currProseNum][i*textRows.runesPerRow : (i*textRows.runesPerRow)+textRows.runesPerRow])
-				size, _ := canvas.MeasureString(currText)
-				fmt.Println("new pizel size : ", size*scaleX, canvas.FontHeight()*float64(textRows.runesPerRow))
+				//size, _ := canvas.MeasureString(currText)
+				//curWidth, _ := canvas.MeasureString(" ")
+				//TODO: should fix this, but it isnt that noticable
+				//fmt.Println("size : ", size, scaleX, currText, len([]rune(currText)))
+				//fmt.Println("size : ", fontWidth, scaleX, fontWidth*scaleX, fontWidth*scaleX*float64(textRows.runesPerRow), "------------------------------------", curWidth, curWidth*scaleX, curWidth*scaleX*float64(textRows.runesPerRow), "----", size, size*scaleX, curWidth*float64(textRows.runesPerRow), "      ---------", size/float64(textRows.runesPerRow))
+				//fmt.Println("new pizel size : ", size*scaleX, canvas.FontHeight()*float64(textRows.runesPerRow))
 				canvas.DrawString(currText, 0, float64(float64(i+1)*canvas.FontHeight()))
 			}
 			currProseNum++
@@ -169,7 +188,6 @@ func (img *PNGData) createTextImage(textRows TextRows, fontSize int) *gg.Context
 			canvas.Pop()
 		}
 	}
-	fmt.Println("pixel sizes : ", pixelSize, pixelSize)
 	return canvas
 }
 
@@ -216,15 +234,15 @@ func (img *PNGData) unfilterData() {
 	}
 }
 
-func (img *PNGData) inflateIdat() {
+func (img *PNGData) inflateIdat(w http.ResponseWriter) {
 	img.InflatedPng = make([]Row, img.Height)
 	r, err := zlib.NewReader(bytes.NewReader(img.Idat))
-	checkErr(err)
+	checkErr(err, w, "Got an error while inflating the idat.", http.StatusInternalServerError)
 	defer r.Close()
 
 	var outBytes bytes.Buffer
 	_, err = io.Copy(&outBytes, r)
-	checkErr(err)
+	checkErr(err, w, "Got an error while inflating the idat.", http.StatusInternalServerError)
 
 	pixelBytes := 3
 	if int(img.ColorType) == 6 {
@@ -235,22 +253,22 @@ func (img *PNGData) inflateIdat() {
 	for i := 0; i < int(img.Height); i++ {
 		filter := make([]byte, 1)
 		_, err = outBytes.Read(filter)
-		checkErr(err)
+		checkErr(err, w, "Got an error while inflating the idat.", http.StatusInternalServerError)
 		img.InflatedPng[i].Filter = filter[0]
 
 		img.InflatedPng[i].RowData = make([]byte, rowSize)
 		_, err = outBytes.Read(img.InflatedPng[i].RowData)
-		checkErr(err)
+		checkErr(err, w, "Got an error while inflating the idat.", http.StatusInternalServerError)
 	}
 }
 
-func (img *PNGData) readChunk() (e error, end bool) {
+func (img *PNGData) readChunk(w http.ResponseWriter) (e error, end bool) {
 	chunk := PNGChunk{}
 	_, err := img.fileStream.Read(chunk.Length[:])
-	checkErr(err)
+	checkErr(err, w, "Got an error while reading the image.", http.StatusInternalServerError)
 
 	_, err = img.fileStream.Read(chunk.Type[:])
-	checkErr(err)
+	checkErr(err, w, "Got an error while reading the image.", http.StatusInternalServerError)
 
 	if string(chunk.Type[:]) == "PLTE" {
 		return fmt.Errorf("not color palets supported"), true
@@ -263,17 +281,17 @@ func (img *PNGData) readChunk() (e error, end bool) {
 	if chunk.Type[0] >= 'a' && chunk.Type[0] <= 'z' {
 		_, err = io.CopyN(io.Discard, img.fileStream, int64(binary.BigEndian.Uint32(chunk.Length[:]))+4)
 		//fmt.Println("Put the fries in the bag")
-		checkErr(err)
+		checkErr(err, w, "Got an error while reading the image.", http.StatusInternalServerError)
 		return nil, false
 	}
 
 	data := make([]byte, int64(binary.BigEndian.Uint32(chunk.Length[:])))
 	_, err = io.ReadFull(img.fileStream, data)
-	checkErr(err)
+	checkErr(err, w, "Got an error while reading the image.", http.StatusInternalServerError)
 	img.Idat = append(img.Idat, data...)
 
 	_, err = io.CopyN(io.Discard, img.fileStream, 4)
-	checkErr(err)
+	checkErr(err, w, "Got an error while reading the image.", http.StatusInternalServerError)
 
 	return nil, false
 }
@@ -339,10 +357,11 @@ func (img *PNGData) scaleDown(cursorSize int) {
 	img.UnfilteredPng = newPng
 }
 
-func checkErr(err error) {
+// malumno?
+func checkErr(err error, w http.ResponseWriter, response string, code int) {
 	if err != nil {
-
-		panic(err)
+		http.Error(w, response, code)
+		return
 	}
 }
 
@@ -391,33 +410,72 @@ func textPixel(text string) TextRows {
 	}
 }
 
-func main() {
-	f, err := os.Open("./mechopuh.png")
-	checkErr(err)
-	defer f.Close()
+func getShaderPicture(w http.ResponseWriter, req *http.Request) {
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+	if req.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if req.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if req.Method != http.MethodPost {
+		http.Error(w, "Must be a POST method.", http.StatusBadRequest)
+	}
+	err := req.ParseMultipartForm(10 << 20)
+	checkErr(err, w, "Unable to parse form", http.StatusRequestEntityTooLarge)
+
+	alpha, err := strconv.ParseFloat(req.FormValue("alpha"), 64)
+	checkErr(err, w, "Something went wrong when parsing image", http.StatusBadRequest)
+
+	fontSize, err := strconv.Atoi(req.FormValue("fontSize"))
+	checkErr(err, w, "Something went wrong when parsing image", http.StatusBadRequest)
+
+	bgColor := req.FormValue("bgColor")
+	textInput := req.FormValue("textInput")
+
+	imageInput, fileHeader, err := req.FormFile("imageInput")
+	checkErr(err, w, "Something went wrong when parsing image", http.StatusBadRequest)
+	defer imageInput.Close()
+
+	if filepath.Ext(fileHeader.Filename) != ".png" {
+		http.Error(w, "Expected a .png, but got something else.", http.StatusBadRequest)
+		return
+	}
+
+	fmt.Println(textInput)
 	var img = PNGData{}
 
-	img.fileStream = bufio.NewReader(f)
+	img.fileStream = bufio.NewReader(imageInput)
+
 	header := make([]byte, 8)
 	_, err = img.fileStream.Read(header)
-	checkErr(err)
+	checkErr(err, w, "Got an error while parsing file.", http.StatusBadRequest)
 
 	if !bytes.Equal(header, pngSignature[:]) {
-		panic("Hello")
+		http.Error(w, "Expected a .png, but got something else.", http.StatusBadRequest)
+		return
 	}
 
 	lenType := make([]byte, 8)
 	_, err = img.fileStream.Read(lenType)
-	checkErr(err)
+	checkErr(err, w, "Got an error while parsing file.", http.StatusBadRequest)
 
 	if string(lenType[4:8]) != "IHDR" && binary.BigEndian.Uint32(lenType[0:4]) != 13 {
-		panic("invalid ihdr")
+		http.Error(w, "Got an error while parsing file.", http.StatusBadRequest)
+		return
 	}
 
 	dataIdhr := make([]byte, 17)
 	_, err = img.fileStream.Read(dataIdhr)
-	checkErr(err)
+	checkErr(err, w, "Got an error while parsing file.", http.StatusBadRequest)
 
 	img.Width = binary.BigEndian.Uint32(dataIdhr[0:4])
 	img.Height = binary.BigEndian.Uint32(dataIdhr[4:8])
@@ -426,18 +484,14 @@ func main() {
 	img.InterlaceMethod = dataIdhr[12]
 
 	if int(img.ColorType) != 6 && int(img.ColorType) != 2 {
-		fmt.Println(img.ColorType)
 		panic("Color type not supported!")
 	}
 	if img.BitDepth != 8 {
 		panic("only 1 byte per channel !")
 	}
-	fmt.Println(img.BitDepth)
-	fmt.Println(img.Width)
-	fmt.Println(img.Height)
 
 	for {
-		err, isEnd := img.readChunk()
+		err, isEnd := img.readChunk(w)
 		if err != nil {
 			panic("error while reading chunks ")
 		}
@@ -446,14 +500,30 @@ func main() {
 			break
 		}
 	}
-	img.inflateIdat()
+	img.inflateIdat(w)
 	img.unfilterData()
 	img.scaleDown(16)
 
-	lines := textPixel(testText)
-	newImage := img.createTextImage(lines, 32)
+	lines := textPixel(textInput)
+	fmt.Println(lines)
+	fmt.Println(fontSize)
+	fmt.Println(alpha)
+	fmt.Println(bgColor)
+	newImage := img.createTextImage(lines, fontSize, alpha, bgColor, w)
 	newImage.SavePNG("helloHello.png")
 
-	//http.HandleFunc("/", greet)
-	//http.ListenAndServe(":8080", nil)
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Content-Disposition", "inline; filename=\"generated.png\"")
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
+	if err := png.Encode(w, newImage.Image()); err != nil {
+		http.Error(w, "Failed to generate image", http.StatusInternalServerError)
+	}
+}
+
+func main() {
+	http.HandleFunc("/shader", getShaderPicture)
+	http.ListenAndServe(":8080", nil)
 }
