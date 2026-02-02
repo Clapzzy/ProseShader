@@ -1,0 +1,12 @@
+@import "tailwindcss";
+:root {
+  font-family:Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color: #1A1A1A;
+  background-color: #FFFAE5;
+}
+
+
+
