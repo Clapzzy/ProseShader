@@ -12,4 +12,9 @@ export default defineConfig({
     }),
     tailwindcss(),
   ],
+  server: {
+    allowedHosts: ['martinkurtev.com'],
+    host: '0.0.0.0',
+    port: 5173
+  }
 })
