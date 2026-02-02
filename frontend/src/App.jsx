@@ -29,7 +29,7 @@ function App() {
     let fontSize = formData.get("fontSize")
     let text = formData.get("textInput")
     if (alpha > 255 || alpha < 0) {
-      formData.set("alpha", 255)
+      formData.set("alpha", 30)
     }
     if (fontSize > 32 || fontSize < 1) {
       formData.set("fontSize", 12)
@@ -44,17 +44,17 @@ function App() {
       responseType: 'blob',
     })
 
-    const url = URL.createObjectURL(response.data);
+    const url = URL.createObjectURL(response.data)
 
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'filename.extension'); // Set filename
-    document.body.appendChild(link);
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', 'filename.extension')
+    document.body.appendChild(link)
 
-    link.click();
+    link.click()
 
-    link.parentNode.removeChild(link);
-    URL.revokeObjectURL(url);
+    link.parentNode.removeChild(link)
+    URL.revokeObjectURL(url)
 
   }
 
@@ -131,167 +131,178 @@ function App() {
           </>
         )
         : (
-          <form
-            onSubmit={handleSubmit}
-            className='w-full overflow-visible flex flex-row justify-around py-32 px-16 gap-24'>
-            <div className='relative w-1/2  '>
-              <input
-                type='file'
-                ref={imgInputRef}
-                name='imageInput'
-                accept='.png,image/png'
-                onChange={handleChange}
-                placeholder='Select a .png image'
-                className='hidden'
-              />
-              <div
-                className={`sticky w-full bg-[#FCF4CF]  top-32 rounded-xl border-2 border-dashed border-[#4C3A2C] inset-shadow-sm inset-shadow-black/20 cursor-pointer ${preview ? 'hidden' : 'block'}`}
-                onClick={() => {
-                  imgInputRef.current.click()
-                }}
-              >
-                <div className='text-center my-4 mx-24'>
-                  <p
-                    className='font-medium italic text-xl text-gray-900'
-                  >
-                    Select a .png file
-                  </p>
-                </div>
-              </div>
-              {preview && (
-                <div className='sticky top-32 '>
-                  <img src={preview} alt='preview' className='w-full object-contain ' style={{ maxHeight: 'calc(100vh * 0.8)' }} />
-                  <button
-                    onClick={() => {
-                      URL.revokeObjectURL(preview)
-                      setPreview('')
-                      imgInputRef.current.value = ''
-                    }} FCF4CF
-                    className='sticky bg-red-100 px-6 py-2 mt-3 rounded-md ring-2 ring-red-300 shadow-xl hover:shadow-2xl transition-shadow duration-300 ease-in-out cursor-pointer select-none active:shadow-md active:duration-75'
-                  >
-                    <p className='font-medium text-red-950'>
-                      Remove
-                    </p>
-                  </button>
-                </div>
-              )}
+          <>
+            <div className='w-8 h-8 mx-6 my-3 bg-[#FCF4CF] flex justify-center items-center rounded-full border-2 border-[#4C3A2C] text-yellow-950 text-xl shadow-xl hover:shadow-2xl transition-shadow duration-300 ease-in-out cursor-pointer select-none active:shadow-md active:duration-75'
+              onClick={() => {
+                setNextPage(false)
+              }}
+            >
+              &lt;
             </div>
-            <div className=" h-[4000px] w-1/2 flex flex-col gap-9">
-
-              <div
-                className='cursor-text group opacity-90 focus-within:opacity-100 hover:opacity-100 transition-all duration-300'
-                onClick={() => {
-                  alphaRef.current.focus()
-                }}
-              >
-                <div className='flex flex-row justify-between'>
-                  <label
-                    htmlFor={alphaId}
-                    className='mr-8 text-xl text-[#4C3A2C] select-none'
-                  >
-                    Background opacity
-                  </label>
-                  <input
-                    className='px-6 text-xl  focus:outline-none focus:ring-0'
-                    type='number'
-                    max={255}
-                    min={0}
-                    defaultValue={255}
-                    name='alpha'
-                    ref={alphaRef}
-                    id={alphaId}
-                  />
-                </div>
-                <div className='h-0.5 w-full mt-1 rounded-full bg-[#FAEEB7] group-focus-within:bg-[#B5A269]! group-hover:bg-[#D9C68C] transition-colors'></div>
-              </div>
-
-              <div
-                className='cursor-text group opacity-90 focus-within:opacity-100 hover:opacity-100 transition-all duration-300'
-                onClick={() => {
-                  fontRef.current.focus()
-                }}
-              >
-                <div className='flex flex-row justify-between'>
-                  <label
-                    htmlFor={fontId}
-                    className='mr-8 text-xl text-[#4C3A2C] select-none'
-                  >
-                    Font size
-                  </label>
-                  <input
-                    className='px-6 text-xl  focus:outline-none focus:ring-0'
-                    type='number'
-                    max={32}
-                    min={1}
-                    defaultValue={12}
-                    name='fontSize'
-                    ref={fontRef}
-                    id={fontId}
-                  />
-                </div>
-                <div className='h-0.5 w-full mt-1 rounded-full bg-[#FAEEB7] group-focus-within:bg-[#B5A269]! group-hover:bg-[#D9C68C] transition-colors'></div>
-              </div>
-
-              <div
-                className='cursor-text group opacity-90 focus-within:opacity-100 hover:opacity-100 transition-all duration-300'
-                onClick={() => {
-                  bgColorRef.current.focus()
-                  bgColorRef.current.click()
-                }}
-              >
-                <div className='flex flex-row justify-between'>
-                  <label
-                    htmlFor={fontId}
-                    className='mr-8 text-xl text-[#4C3A2C] select-none'
-                  >
-                    Background color
-                  </label>
-                  <input
-                    className='px-6 text-xl  focus:outline-none focus:ring-0 min-w-14'
-                    name='bgColor'
-                    type='color'
-                    id={bgColorId}
-                    ref={bgColorRef}
-                  />
-                </div>
-                <div className='h-0.5 w-full mt-1 rounded-full bg-[#FAEEB7] group-focus-within:bg-[#B5A269]! group-hover:bg-[#D9C68C] transition-colors'></div>
-              </div>
-
-              <div
-                className='flex flex-col gap-3 cursor-text opacity-80 focus-within:opacity-100 hover:opacity-100 transition-all duration-300'
-                onClick={() => {
-                  textRef.current.focus()
-                }}
-              >
-                <label
-                  htmlFor={textId}
-                  className='mr-8 text-xl text-[#4C3A2C] select-none'
-                >
-                  Poem
-                </label>
-                <textarea
-                  className='rounded-xl px-3 py-1.5 border-2 border-[#F9E99F] focus:border-[#B5A269]! hover:border-[#D9C68C] transition-all overflow-hidden resize-none focus:outline-none focus:ring-0 '
-                  name='textInput'
-                  type='text'
-                  placeholder='Paste your poem here'
-                  wrap={"soft"}
-                  spellCheck={false}
-                  ref={textRef}
-                  id={textId}
-                  onChange={() => {
-                    textRef.current.style.height = 'auto'
-                    textRef.current.style.height = `${textRef.current.scrollHeight}px`
+            <form
+              onSubmit={handleSubmit}
+              className='w-full overflow-visible flex flex-row justify-around py-32 px-16 gap-24'>
+              <div className='relative w-1/2  '>
+                <input
+                  type='file'
+                  ref={imgInputRef}
+                  name='imageInput'
+                  accept='.png,image/png'
+                  onChange={handleChange}
+                  placeholder='Select a .png image'
+                  className='hidden'
+                />
+                <div
+                  className={`sticky w-full bg-[#FCF4CF]  top-32 rounded-xl border-2 border-dashed border-[#4C3A2C] inset-shadow-sm inset-shadow-black/20 cursor-pointer ${preview ? 'hidden' : 'block'}`}
+                  onClick={() => {
+                    imgInputRef.current.click()
                   }}
-                  cols={10}
+                >
+                  <div className='text-center my-4 mx-24'>
+                    <p
+                      className='font-medium italic text-xl text-gray-900'
+                    >
+                      Select a .png file
+                    </p>
+                  </div>
+                </div>
+                {preview && (
+                  <div className='sticky top-32 '>
+                    <img src={preview} alt='preview' className='w-full object-contain ' style={{ maxHeight: 'calc(100vh * 0.8)' }} />
+                    <button
+                      onClick={() => {
+                        URL.revokeObjectURL(preview)
+                        setPreview('')
+                        imgInputRef.current.value = ''
+                      }}
+                      className='sticky bg-red-100 px-6 py-2 mt-3 rounded-md ring-2 ring-red-300 shadow-xl hover:shadow-2xl transition-shadow duration-300 ease-in-out cursor-pointer select-none active:shadow-md active:duration-75'
+                    >
+                      <p className='font-medium text-red-950'>
+                        Remove
+                      </p>
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="w-1/2 flex flex-col gap-9">
+                <h1 className='mb-3 text-4xl text-[#4C3A2C]/98 select-none'>
+                  Shader Options :
+                </h1>
+                <div
+                  className='cursor-text group opacity-90 focus-within:opacity-100 hover:opacity-100 transition-all duration-300'
+                  onClick={() => {
+                    alphaRef.current.focus()
+                  }}
+                >
+                  <div className='flex flex-row justify-between'>
+                    <label
+                      htmlFor={alphaId}
+                      className='mr-8 text-xl text-[#4C3A2C] select-none'
+                    >
+                      Background opacity
+                    </label>
+                    <input
+                      className='px-6 text-xl  focus:outline-none focus:ring-0'
+                      type='number'
+                      max={255}
+                      min={0}
+                      defaultValue={30}
+                      name='alpha'
+                      ref={alphaRef}
+                      id={alphaId}
+                    />
+                  </div>
+                  <div className='h-0.5 w-full mt-1 rounded-full bg-[#FAEEB7] group-focus-within:bg-[#B5A269]! group-hover:bg-[#D9C68C] transition-colors'></div>
+                </div>
+
+                <div
+                  className='cursor-text group opacity-90 focus-within:opacity-100 hover:opacity-100 transition-all duration-300'
+                  onClick={() => {
+                    fontRef.current.focus()
+                  }}
+                >
+                  <div className='flex flex-row justify-between'>
+                    <label
+                      htmlFor={fontId}
+                      className='mr-8 text-xl text-[#4C3A2C] select-none'
+                    >
+                      Font size
+                    </label>
+                    <input
+                      className='px-6 text-xl  focus:outline-none focus:ring-0'
+                      type='number'
+                      max={32}
+                      min={1}
+                      defaultValue={12}
+                      name='fontSize'
+                      ref={fontRef}
+                      id={fontId}
+                    />
+                  </div>
+                  <div className='h-0.5 w-full mt-1 rounded-full bg-[#FAEEB7] group-focus-within:bg-[#B5A269]! group-hover:bg-[#D9C68C] transition-colors'></div>
+                </div>
+
+                <div
+                  className='cursor-text group opacity-90 focus-within:opacity-100 hover:opacity-100 transition-all duration-300'
+                  onClick={() => {
+                    bgColorRef.current.focus()
+                    bgColorRef.current.click()
+                  }}
+                >
+                  <div className='flex flex-row justify-between'>
+                    <label
+                      htmlFor={fontId}
+                      className='mr-8 text-xl text-[#4C3A2C] select-none'
+                    >
+                      Background color
+                    </label>
+                    <input
+                      className='px-6 text-xl  focus:outline-none focus:ring-0 min-w-14 opacity-100!'
+                      name='bgColor'
+                      type='color'
+                      id={bgColorId}
+                      ref={bgColorRef}
+                    />
+                  </div>
+                  <div className='h-0.5 w-full mt-1 rounded-full bg-[#FAEEB7] group-focus-within:bg-[#B5A269]! group-hover:bg-[#D9C68C] transition-colors'></div>
+                </div>
+
+                <div
+                  className='flex flex-col gap-3 cursor-text opacity-80 focus-within:opacity-100 hover:opacity-100 transition-all duration-300'
+                  onClick={() => {
+                    textRef.current.focus()
+                  }}
+                >
+                  <label
+                    htmlFor={textId}
+                    className='mr-8 text-xl text-[#4C3A2C] select-none'
+                  >
+                    Poem
+                  </label>
+                  <textarea
+                    className='rounded-xl px-3 py-1.5 border-2 border-[#F9E99F] focus:border-[#B5A269]! hover:border-[#D9C68C] transition-all overflow-hidden resize-none focus:outline-none focus:ring-0 '
+                    name='textInput'
+                    type='text'
+                    placeholder='Paste your poem here'
+                    wrap={"soft"}
+                    spellCheck={false}
+                    ref={textRef}
+                    id={textId}
+                    onChange={() => {
+                      textRef.current.style.height = 'auto'
+                      textRef.current.style.height = `${textRef.current.scrollHeight}px`
+                    }}
+                    cols={10}
+                  />
+                </div>
+                <input
+                  type='submit'
+                  value="Create image"
+                  className='sticky bg-green-100 px-6 py-2 mt-3 text-green-950 rounded-md ring-2 ring-green-300 shadow-xl hover:shadow-2xl transition-shadow duration-300 ease-in-out cursor-pointer select-none active:shadow-md active:duration-75'
                 />
               </div>
-              <input
-                type='submit'
-                value="Create image"
-                className='sticky bg-green-100 px-6 py-2 mt-3 text-green-950 rounded-md ring-2 ring-green-300 shadow-xl hover:shadow-2xl transition-shadow duration-300 ease-in-out cursor-pointer select-none active:shadow-md active:duration-75'
-              />
-            </div>
-          </form>
+            </form>
+          </>
         )
       }
     </div>
