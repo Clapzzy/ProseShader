@@ -3,7 +3,7 @@ import ghLogo from './assets/GitHub_Invertocat_Black.svg'
 import axios from 'axios'
 
 function App() {
-  const [nextPage, setNextPage] = useState(true)
+  const [nextPage, setNextPage] = useState(false)
   const [preview, setPreview] = useState(null)
   const [textAreaValue, setTextAreaValue] = useState("")
   const imgInputRef = useRef(null)
@@ -100,7 +100,7 @@ function App() {
                   A pixel-poem renderer.
                 </h2>
               </div>
-              <div className='w-full flex flex-row justify-between items-center mb-24 px-24'>
+              <div className='w-full flex flex-col gap-12 md:flex-row justify-between items-center mb-24 px-24'>
                 <div className=''>
                   <h3 className='font-normal text-[32px] text-[#333333] leading-relaxed'>
                     A shader that transforms text into images —
@@ -141,8 +141,8 @@ function App() {
             </div>
             <form
               onSubmit={handleSubmit}
-              className='w-full overflow-visible flex flex-row justify-around py-32 px-16 gap-24'>
-              <div className='relative w-1/2  '>
+              className='w-full overflow-visible flex flex-col md:flex-row justify-around py-32 px-16 gap-24'>
+              <div className='relative md:w-1/2  '>
                 <input
                   type='file'
                   ref={imgInputRef}
@@ -153,7 +153,7 @@ function App() {
                   className='hidden'
                 />
                 <div
-                  className={`sticky w-full bg-[#FCF4CF]  top-32 rounded-xl border-2 border-dashed border-[#4C3A2C] inset-shadow-sm inset-shadow-black/20 cursor-pointer ${preview ? 'hidden' : 'block'}`}
+                  className={`md:sticky w-full bg-[#FCF4CF]  top-32 rounded-xl border-2 border-dashed border-[#4C3A2C] inset-shadow-sm inset-shadow-black/20 cursor-pointer ${preview ? 'hidden' : 'block'}`}
                   onClick={() => {
                     imgInputRef.current.click()
                   }}
@@ -167,7 +167,7 @@ function App() {
                   </div>
                 </div>
                 {preview && (
-                  <div className='sticky top-32 '>
+                  <div className='md:sticky top-32 '>
                     <img src={preview} alt='preview' className='w-full object-contain ' style={{ maxHeight: 'calc(100vh * 0.8)' }} />
                     <button
                       onClick={() => {
@@ -175,7 +175,7 @@ function App() {
                         setPreview('')
                         imgInputRef.current.value = ''
                       }}
-                      className='sticky bg-red-100 px-6 py-2 mt-3 rounded-md ring-2 ring-red-300 shadow-xl hover:shadow-2xl transition-shadow duration-300 ease-in-out cursor-pointer select-none active:shadow-md active:duration-75'
+                      className='md:sticky bg-red-100 px-6 py-2 mt-3 rounded-md ring-2 ring-red-300 shadow-xl hover:shadow-2xl transition-shadow duration-300 ease-in-out cursor-pointer select-none active:shadow-md active:duration-75'
                     >
                       <p className='font-medium text-red-950'>
                         Remove
@@ -184,7 +184,7 @@ function App() {
                   </div>
                 )}
               </div>
-              <div className="w-1/2 flex flex-col gap-9">
+              <div className="md:w-1/2 flex flex-col gap-9 h-1000">
                 <h1 className='mb-3 text-4xl text-[#4C3A2C]/98 select-none'>
                   Shader Options :
                 </h1>
